@@ -247,6 +247,19 @@ pub struct Tark<T: ?Sized> {
 }
 
 impl<T: ?Sized> Tark<T> {
+    pub fn new(t: T) -> Self
+    where
+        T: Sized,
+    {
+        let inner = unsafe { alloc_nonnull(TarkInner::new(t)) };
+        TarkInner::inc(inner);
+        unsafe { Tark {
+            inner,
+            strong: alloc_cell(1),
+            weak: alloc_cell(0),
+        } }
+    }
+
     fn strong(this: &Self) -> &Cell<usize> {
         unsafe { this.strong.as_ref() }
     }
