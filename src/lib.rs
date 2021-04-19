@@ -111,8 +111,7 @@ impl<T: ?Sized + Send + Sync> TarkSend<T> {
     pub fn promote(this: Self) -> Tark<T> {
         let t = Tark {
             inner: this.inner,
-            strong: unsafe { alloc_cell(1) },
-            weak: unsafe { alloc_cell(0) },
+            strong_weak: unsafe { StrongWeak::alloc() },
         };
         std::mem::forget(this);
         t
@@ -122,8 +121,7 @@ impl<T: ?Sized + Send + Sync> TarkSend<T> {
         TarkInner::inc(this.inner);
         Tark {
             inner: this.inner,
-            strong: unsafe { alloc_cell(1) },
-            weak: unsafe { alloc_cell(0) },
+            strong_weak: unsafe { StrongWeak::alloc() },
         }
     }
 
@@ -242,8 +240,7 @@ impl<T: ?Sized + Send + Sync> Pointer for TarkSend<T> {
 
 pub struct Tark<T: ?Sized> {
     inner: NonNull<TarkInner<T>>,
-    strong: NonNull<Cell<usize>>,
-    weak: NonNull<Cell<usize>>,
+    strong_weak: NonNull<StrongWeak>,
 }
 
 impl<T: ?Sized> Tark<T> {
@@ -255,17 +252,16 @@ impl<T: ?Sized> Tark<T> {
         TarkInner::inc(inner);
         unsafe { Tark {
             inner,
-            strong: alloc_cell(1),
-            weak: alloc_cell(0),
+            strong_weak: StrongWeak::alloc(),
         } }
     }
 
     fn strong(this: &Self) -> &Cell<usize> {
-        unsafe { this.strong.as_ref() }
+        &unsafe { this.strong_weak.as_ref() }.strong
     }
 
     fn weak(this: &Self) -> &Cell<usize> {
-        unsafe { this.weak.as_ref() }
+        &unsafe { this.strong_weak.as_ref() }.weak
     }
 
     pub fn strong_count(this: &Self) -> usize {
@@ -281,8 +277,7 @@ impl<T: ?Sized> Tark<T> {
         weak.set(weak.get() + 1);
         WeakTark {
             inner: this.inner,
-            strong: this.strong,
-            weak: this.weak,
+            strong_weak: this.strong_weak,
         }
     }
 }
@@ -345,8 +340,7 @@ impl<T: ?Sized> Clone for Tark<T> {
         strong.set(strong.get() + 1);
         Tark {
             inner: self.inner,
-            strong: self.strong,
-            weak: self.weak,
+            strong_weak: self.strong_weak,
         }
     }
 
@@ -413,19 +407,18 @@ impl<T: ?Sized> Pointer for Tark<T> {
 
 pub struct WeakTark<T: ?Sized> {
     inner: NonNull<TarkInner<T>>,
-    strong: NonNull<Cell<usize>>,
-    weak: NonNull<Cell<usize>>,
+    strong_weak: NonNull<StrongWeak>,
 }
 
 pub type Weak<T> = WeakTark<T>;
 
 impl<T: ?Sized> Weak<T> {
     fn strong(this: &Self) -> &Cell<usize> {
-        unsafe { this.strong.as_ref() }
+        &unsafe { this.strong_weak.as_ref() }.strong
     }
 
     fn weak(this: &Self) -> &Cell<usize> {
-        unsafe { this.weak.as_ref() }
+        &unsafe { this.strong_weak.as_ref() }.weak
     }
 
     pub fn strong_count(this: &Self) -> usize {
@@ -444,8 +437,7 @@ impl<T: ?Sized> Weak<T> {
             strong.set(strong.get() + 1);
             Some(Tark {
                 inner: this.inner,
-                strong: this.strong,
-                weak: this.weak,
+                strong_weak: this.strong_weak,
             })
         }
     }
@@ -457,8 +449,7 @@ impl<T: ?Sized> Clone for Weak<T> {
         weak.set(weak.get() + 1);
         Weak {
             inner: self.inner,
-            strong: self.strong,
-            weak: self.weak,
+            strong_weak: self.strong_weak,
         }
     }
 
@@ -474,10 +465,7 @@ impl<T: ?Sized> Drop for Weak<T> {
         let weak = Weak::weak(self);
 
         if weak.get() == 1 && Weak::strong_count(self) == 0 {
-            unsafe {
-                drop(self.strong);
-                drop(self.weak);
-            }
+            unsafe { drop(self.strong_weak); }
         } else {
             weak.set(weak.get() - 1);
         }
@@ -490,8 +478,18 @@ impl<T: ?Sized> Pointer for Weak<T> {
     }
 }
 
-unsafe fn alloc_cell(val: usize) -> NonNull<Cell<usize>> {
-    alloc_nonnull(Cell::new(val))
+struct StrongWeak {
+    strong: Cell<usize>,
+    weak: Cell<usize>,
+}
+
+impl StrongWeak {
+    unsafe fn alloc() -> NonNull<StrongWeak> {
+        alloc_nonnull(StrongWeak {
+            strong: Cell::new(1),
+            weak: Cell::new(0),
+        })
+    }
 }
 
 unsafe fn alloc_nonnull<T>(t: T) -> NonNull<T> {
