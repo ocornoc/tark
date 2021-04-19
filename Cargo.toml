@@ -1,0 +1,15 @@
+[package]
+name = "tark"
+version = "0.1.0"
+authors = ["ocornoc <ocornoc@protonmail.com>"]
+edition = "2018"
+include = ["src/**/*", "LICENSE-*"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ocornoc/tark"
+description = "An `Arc` with a thread-local strong/weak count."
+
+[dependencies]
+
+[dev-dependencies]
+rayon = "1.5.0"
+criterion = "0.3.4"
