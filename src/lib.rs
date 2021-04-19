@@ -13,13 +13,13 @@ struct TarkInner<T: ?Sized> {
 
 impl<T: ?Sized> TarkInner<T> {
     fn dec_maybe_drop(inner: NonNull<TarkInner<T>>) {
-        if unsafe { inner.as_ref() }.strong.fetch_sub(1, Ordering::AcqRel) == 1 {
+        if unsafe { inner.as_ref() }.strong.fetch_sub(1, Ordering::Relaxed) == 1 {
             unsafe { drop(inner); }
         }
     }
 
     fn inc(inner: NonNull<TarkInner<T>>) {
-        unsafe { inner.as_ref() }.strong.fetch_add(1, Ordering::Release);
+        unsafe { inner.as_ref() }.strong.fetch_add(1, Ordering::Relaxed);
     }
 
     const fn new(data: T) -> Self
