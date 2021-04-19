@@ -27,7 +27,7 @@ impl<T: ?Sized> TarkInner<T> {
         T: Sized,
     {
         TarkInner {
-            strong: AtomicUsize::new(0),
+            strong: AtomicUsize::new(1),
             data,
         }
     }
@@ -249,7 +249,6 @@ impl<T: ?Sized> Tark<T> {
         T: Sized,
     {
         let inner = unsafe { alloc_nonnull(TarkInner::new(t)) };
-        TarkInner::inc(inner);
         unsafe { Tark {
             inner,
             strong_weak: StrongWeak::alloc(),
@@ -358,6 +357,10 @@ impl<T: ?Sized> Drop for Tark<T> {
 
         if count == 1 {
             TarkInner::dec_maybe_drop(self.inner);
+
+            if Self::weak_count(self) == 0 {
+                unsafe { drop(self.strong_weak); }
+            }
         }
 
         strong.set(count - 1);
