@@ -19,4 +19,5 @@ criterion = { version = "0.3.4", features = ["html_reports"] }
 
 [[bench]]
 name = "single_thread_vs"
+path = "benches/single_thead_vs.rs"
 harness = false
