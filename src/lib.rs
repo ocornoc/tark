@@ -5,6 +5,7 @@ use std::ops::Deref;
 use std::borrow::Borrow;
 use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::num::NonZeroUsize;
 
 struct TarkInner<T: ?Sized> {
     strong: AtomicUsize,
@@ -105,6 +106,13 @@ impl<T: ?Sized + Send + Sync> TarkSend<T> {
         T: Sized,
     {
         Self::from_raw(alloc_nonnull(TarkInner::new(t)))
+    }
+
+    pub fn atomic_count(this: &Self) -> NonZeroUsize {
+        // SAFE: The atomic refcount is guaranteed non-zero.
+        unsafe { NonZeroUsize::new_unchecked(
+            this.inner.as_ref().strong.load(Ordering::Acquire),
+        ) }
     }
 
     fn from_raw(inner: NonNull<TarkInner<T>>) -> Self {
@@ -277,6 +285,13 @@ impl<T: ?Sized> Tark<T> {
         // invariants necessary for .as_ref() except mutable aliasing. we also
         // only allow non-mutable references, so it all works out.
         &unsafe { this.strong_weak.as_ref() }.weak
+    }
+
+    pub fn atomic_count(this: &Self) -> NonZeroUsize {
+        // SAFE: The atomic refcount is guaranteed non-zero.
+        unsafe { NonZeroUsize::new_unchecked(
+            this.inner.as_ref().strong.load(Ordering::Acquire),
+        ) }
     }
 
     pub fn strong_count(this: &Self) -> usize {
@@ -457,6 +472,18 @@ impl<T: ?Sized> Weak<T> {
 
     pub fn weak_count(this: &Self) -> usize {
         Self::weak(this).get()
+    }
+
+    pub fn atomic_count(this: &Self) -> Option<NonZeroUsize> {
+        if Self::strong_count(this) == 0 {
+            None
+        } else {
+            // SAFE: if the strong count is non-zero, there is some Tark, and
+            // thus the atomic count is non-zero.
+            Some(unsafe { NonZeroUsize::new_unchecked(
+                this.inner.as_ref().strong.load(Ordering::Acquire),
+            ) })
+        }
     }
 
     pub fn upgrade(this: &Self) -> Option<Tark<T>> {
