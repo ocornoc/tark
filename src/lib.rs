@@ -100,7 +100,7 @@ impl<T: ?Sized + Send + Sync> TarkSend<T> {
     where
         T: Sized,
     {
-        Self::from_raw(unsafe { alloc_nonnull(TarkInner::new(t)) })
+        Self::from_raw(alloc_nonnull(TarkInner::new(t)))
     }
 
     fn from_raw(inner: NonNull<TarkInner<T>>) -> Self {
@@ -495,8 +495,10 @@ impl StrongWeak {
     }
 }
 
-unsafe fn alloc_nonnull<T>(t: T) -> NonNull<T> {
-    NonNull::new_unchecked(Box::into_raw(Box::new(t)))
+fn alloc_nonnull<T>(t: T) -> NonNull<T> {
+    // SAFE: `Box` itself holds a `Unique` which is guaranteed non-null, so the
+    // raw pointer must be non-null too.
+    unsafe { NonNull::new_unchecked(Box::into_raw(Box::new(t))) }
 }
 
 #[cold]
