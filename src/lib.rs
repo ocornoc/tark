@@ -13,12 +13,16 @@ struct TarkInner<T: ?Sized> {
 
 impl<T: ?Sized> TarkInner<T> {
     fn dec_maybe_drop(inner: NonNull<TarkInner<T>>) {
+        // SAFE: `inner` is assumed valid
         if unsafe { inner.as_ref() }.strong.fetch_sub(1, Ordering::AcqRel) == 1 {
+            // SAFE: `inner` was allocated as a box, and thus can be dropped as
+            // one.
             unsafe { drop(inner); }
         }
     }
 
     fn inc(inner: NonNull<TarkInner<T>>) {
+        // SAFE: `inner` is assumed valid
         unsafe { inner.as_ref() }.strong.fetch_add(1, Ordering::Release);
     }
 
@@ -111,7 +115,7 @@ impl<T: ?Sized + Send + Sync> TarkSend<T> {
     pub fn promote(this: Self) -> Tark<T> {
         let t = Tark {
             inner: this.inner,
-            strong_weak: unsafe { StrongWeak::alloc() },
+            strong_weak: StrongWeak::alloc(),
         };
         std::mem::forget(this);
         t
@@ -121,7 +125,7 @@ impl<T: ?Sized + Send + Sync> TarkSend<T> {
         TarkInner::inc(this.inner);
         Tark {
             inner: this.inner,
-            strong_weak: unsafe { StrongWeak::alloc() },
+            strong_weak: StrongWeak::alloc(),
         }
     }
 
@@ -194,11 +198,17 @@ impl<T: ?Sized + Send + Sync> Drop for TarkSend<T> {
     }
 }
 
+// SAFE: `T` is Send and Sync, meaning a pointer to it is as well.
 unsafe impl<T: ?Sized + Send + Sync> Send for TarkSend<T> {}
+
+// SAFE: `T` is Send and Sync, meaning a pointer to it is as well.
 unsafe impl<T: ?Sized + Send + Sync> Sync for TarkSend<T> {}
 
 impl<T: ?Sized + Send + Sync> AsRef<T> for TarkSend<T> {
     fn as_ref(&self) -> &T {
+        // SAFE: `inner` is a Box pointer, which upholds all the same invariants
+        // necessary for .as_ref() except mutable aliasing. we also only allow
+        // non-mutable references, so it all works out.
         &unsafe { self.inner.as_ref() }.data
     }
 }
@@ -248,18 +258,24 @@ impl<T: ?Sized> Tark<T> {
     where
         T: Sized,
     {
-        let inner = unsafe { alloc_nonnull(TarkInner::new(t)) };
-        unsafe { Tark {
+        let inner = alloc_nonnull(TarkInner::new(t));
+        Tark {
             inner,
             strong_weak: StrongWeak::alloc(),
-        } }
+        }
     }
 
     fn strong(this: &Self) -> &Cell<usize> {
+        // SAFE: `strong_weak` is a Box pointer, which upholds all the same
+        // invariants necessary for .as_ref() except mutable aliasing. we also
+        // only allow non-mutable references, so it all works out.
         &unsafe { this.strong_weak.as_ref() }.strong
     }
 
     fn weak(this: &Self) -> &Cell<usize> {
+        // SAFE: `strong_weak` is a Box pointer, which upholds all the same
+        // invariants necessary for .as_ref() except mutable aliasing. we also
+        // only allow non-mutable references, so it all works out.
         &unsafe { this.strong_weak.as_ref() }.weak
     }
 
@@ -359,6 +375,8 @@ impl<T: ?Sized> Drop for Tark<T> {
             TarkInner::dec_maybe_drop(self.inner);
 
             if Self::weak_count(self) == 0 {
+                // SAFE: strong_weak was allocated as a box, and thus can be
+                // dropped as one.
                 unsafe { drop(self.strong_weak); }
             }
         }
@@ -369,6 +387,9 @@ impl<T: ?Sized> Drop for Tark<T> {
 
 impl<T: ?Sized> AsRef<T> for Tark<T> {
     fn as_ref(&self) -> &T {
+        // SAFE: `inner` is a Box pointer, which upholds all the same invariants
+        // necessary for .as_ref() except mutable aliasing. we also only allow
+        // non-mutable references, so it all works out.
         &unsafe { self.inner.as_ref() }.data
     }
 }
@@ -417,10 +438,16 @@ pub type Weak<T> = WeakTark<T>;
 
 impl<T: ?Sized> Weak<T> {
     fn strong(this: &Self) -> &Cell<usize> {
+        // SAFE: `strong_weak` is a Box pointer, which upholds all the same
+        // invariants necessary for .as_ref() except mutable aliasing. we also
+        // only allow non-mutable references, so it all works out.
         &unsafe { this.strong_weak.as_ref() }.strong
     }
 
     fn weak(this: &Self) -> &Cell<usize> {
+        // SAFE: `strong_weak` is a Box pointer, which upholds all the same
+        // invariants necessary for .as_ref() except mutable aliasing. we also
+        // only allow non-mutable references, so it all works out.
         &unsafe { this.strong_weak.as_ref() }.weak
     }
 
@@ -468,6 +495,8 @@ impl<T: ?Sized> Drop for Weak<T> {
         let weak = Weak::weak(self);
 
         if weak.get() == 1 && Weak::strong_count(self) == 0 {
+            // SAFE: strong_weak was allocated as a box, and thus can be
+            // dropped as one.
             unsafe { drop(self.strong_weak); }
         } else {
             weak.set(weak.get() - 1);
@@ -487,7 +516,7 @@ struct StrongWeak {
 }
 
 impl StrongWeak {
-    unsafe fn alloc() -> NonNull<StrongWeak> {
+    fn alloc() -> NonNull<StrongWeak> {
         alloc_nonnull(StrongWeak {
             strong: Cell::new(1),
             weak: Cell::new(0),
