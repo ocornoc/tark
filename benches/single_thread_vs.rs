@@ -3,13 +3,11 @@ use std::sync::{Arc, Weak as WeakArc};
 use tark::{Tark, WeakTark};
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BatchSize};
 
-
-
 fn new_bench(c: &mut Criterion) {
-    const NEW_RANGES: &[usize] = &[1, 2, 5, 10];
+    const CLONE_RANGES: &[usize] = &[1, 1000, 10000];
     let mut group = c.benchmark_group("[Rc/Arc/Tark]::new()");
 
-    for &end in NEW_RANGES {
+    for &end in CLONE_RANGES {
         let iter = (0..end).into_iter().collect::<Vec<_>>();
 
         group.bench_with_input(format!("{} usizes, Rc", end), &iter, |b, iter| {
@@ -33,7 +31,7 @@ fn new_bench(c: &mut Criterion) {
 }
 
 fn clone_bench(c: &mut Criterion) {
-    const CLONE_RANGES: &[usize] = &[1, 2, 5, 10, 50, 100, 1000, 10000];
+    const CLONE_RANGES: &[usize] = &[1, 1000, 10000];
     let mut group = c.benchmark_group("[Rc/Arc/Tark]::clone()");
 
     for num in CLONE_RANGES {
