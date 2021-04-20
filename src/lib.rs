@@ -261,6 +261,8 @@ pub struct Tark<T: ?Sized> {
     strong_weak: NonNull<StrongWeak>,
 }
 
+pub type TarkLocal<T> = Tark<T>;
+
 impl<T: ?Sized> Tark<T> {
     pub fn new(t: T) -> Self
     where
