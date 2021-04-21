@@ -7,8 +7,6 @@ use std::cell::Cell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::num::NonZeroUsize;
 
-pub mod swap;
-
 struct TarkInner<T: ?Sized> {
     strong: AtomicUsize,
     data: T,
@@ -24,15 +22,14 @@ impl<T: ?Sized> TarkInner<T> {
         }
     }
 
-    fn inc(inner: NonNull<TarkInner<T>>) {
+    fn inc_nonnull(inner: NonNull<TarkInner<T>>) {
         // SAFE: `inner` is assumed valid
         unsafe { inner.as_ref() }.strong.fetch_add(1, Ordering::Release);
     }
+}
 
-    const fn new(data: T) -> Self
-    where
-        T: Sized,
-    {
+impl<T> TarkInner<T> {
+    const fn new(data: T) -> Self {
         TarkInner {
             strong: AtomicUsize::new(1),
             data,
@@ -118,7 +115,7 @@ impl<T: ?Sized + Send + Sync> TarkSend<T> {
     }
 
     fn from_raw(inner: NonNull<TarkInner<T>>) -> Self {
-        TarkInner::inc(inner);
+        TarkInner::inc_nonnull(inner);
         TarkSend { inner }
     }
 
@@ -132,7 +129,7 @@ impl<T: ?Sized + Send + Sync> TarkSend<T> {
     }
 
     pub fn promote_ref(this: &Self) -> Tark<T> {
-        TarkInner::inc(this.inner);
+        TarkInner::inc_nonnull(this.inner);
         Tark {
             inner: this.inner,
             strong_weak: StrongWeak::alloc(),
@@ -313,6 +310,19 @@ impl<T: ?Sized> Tark<T> {
             inner: this.inner,
             strong_weak: this.strong_weak,
         }
+    }
+
+    pub fn swap<'a>(this: &'a Self, other: &'a Tark<T>) {
+        // SAFE: this is safe because Self isn't sync, so the only thread that
+        // could be working with `this` and `other` is the current one. and,
+        // because this is the only thread working with this data, and this
+        // thread is guaranteed preoccupied with currently performing this
+        // function on said data, it's totally fine to swap them right here.
+        //
+        // i think.
+        let this: &'a Cell<Self> = unsafe { std::mem::transmute(this) };
+        let other: &'a Cell<Self> = unsafe { std::mem::transmute(other) };
+        this.swap(other);
     }
 }
 
