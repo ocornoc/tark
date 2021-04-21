@@ -311,19 +311,6 @@ impl<T: ?Sized> Tark<T> {
             strong_weak: this.strong_weak,
         }
     }
-
-    pub fn swap<'a>(this: &'a Self, other: &'a Tark<T>) {
-        // SAFE: this is safe because Self isn't sync, so the only thread that
-        // could be working with `this` and `other` is the current one. and,
-        // because this is the only thread working with this data, and this
-        // thread is guaranteed preoccupied with currently performing this
-        // function on said data, it's totally fine to swap them right here.
-        //
-        // i think.
-        let this: &'a Cell<Self> = unsafe { std::mem::transmute(this) };
-        let other: &'a Cell<Self> = unsafe { std::mem::transmute(other) };
-        this.swap(other);
-    }
 }
 
 impl<T: ?Sized + Send + Sync> Tark<T> {
