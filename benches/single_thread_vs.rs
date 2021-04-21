@@ -107,10 +107,31 @@ fn clone_bench(c: &mut Criterion) {
     black_box(tarks);
 }
 
+fn deref_bench(c: &mut Criterion) {
+    let mut group = c.benchmark_group("[Rc/Arc/Tark] deref, once");
+    group.throughput(Throughput::Elements(1));
+    let rc = Rc::new(0);
+    let arc = Arc::new(0);
+    let tark = Tark::new(0);
+    group.bench_with_input("Rc", &rc, |b, rc| {
+        b.iter_with_large_drop(|| black_box(&*rc));
+    });
+    group.bench_with_input("Arc", &arc, |b, arc| {
+        b.iter_with_large_drop(|| black_box(&*arc));
+    });
+    group.bench_with_input("Tark", &tark, |b, tark| {
+        b.iter_with_large_drop(|| black_box(&*tark));
+    });
+    group.finish();
+    black_box(rc);
+    black_box(arc);
+    black_box(tark);
+}
+
 criterion_group! {
     name = new;
     config = Criterion::default();
-    targets = new_bench, clone_bench,
+    targets = new_bench, clone_bench, deref_bench,
 }
 
 criterion_main!(new);
