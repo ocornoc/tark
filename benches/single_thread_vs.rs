@@ -1,11 +1,11 @@
 use std::rc::{Rc, Weak as WeakRc};
 use std::sync::{Arc, Weak as WeakArc};
-use tark::{Tark, WeakTark};
+use tark::{Tark, WeakTark, swap::{Tark as SwapTark, WeakTark as SwapWeakTark}};
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BatchSize};
 
 fn new_bench(c: &mut Criterion) {
     const RANGES: &[usize] = &[1000];
-    let mut group = c.benchmark_group("[Rc/Arc/Tark]::new()");
+    let mut group = c.benchmark_group("[Rc/Arc/Tark/SwapTark]::new()");
 
     group.bench_with_input("1 usize, Rc", &(), |b, _| {
         b.iter(|| black_box(Rc::new(black_box(0))));
@@ -17,6 +17,10 @@ fn new_bench(c: &mut Criterion) {
 
     group.bench_with_input("1 usize, Tark", &(), |b, _| {
         b.iter(|| black_box(Tark::new(black_box(0))));
+    });
+
+    group.bench_with_input("1 usize, SwapTark", &(), |b, _| {
+        b.iter(|| black_box(SwapTark::new(black_box(0))));
     });
 
     for &end in RANGES {
@@ -45,15 +49,24 @@ fn new_bench(c: &mut Criterion) {
                 BatchSize::PerIteration,
             )
         });
+
+        group.bench_with_input(format!("{} usizes, SwapTark", end), &ns, |b, ns| {
+            b.iter_batched(
+                || black_box(ns.clone()),
+                |vs| vs.into_iter().map(SwapTark::new).collect::<Vec<_>>(),
+                BatchSize::PerIteration,
+            )
+        });
     }
 }
 
 fn clone_bench(c: &mut Criterion) {
     const RANGES: &[usize] = &[1000];
-    let mut group = c.benchmark_group("[Rc/Arc/Tark]::clone()");
+    let mut group = c.benchmark_group("[Rc/Arc/Tark/SwapTark]::clone()");
     let rc = Rc::new(0);
     let arc = Arc::new(0);
     let tark = Tark::new(0);
+    let swaptark = SwapTark::new(0);
 
     group.bench_with_input("1 clone, Rc", &rc, |b, rc| {
         b.iter_with_large_drop(|| black_box(rc.clone()));
@@ -67,10 +80,18 @@ fn clone_bench(c: &mut Criterion) {
         b.iter_with_large_drop(|| black_box(tark.clone()));
     });
 
+    group.bench_with_input("1 clone, SwapTark", &tark, |b, tark| {
+        b.iter_with_large_drop(|| black_box(tark.clone()));
+    });
+
     for &end in RANGES {
         let rcs = std::iter::repeat(rc.clone()).take(end).into_iter().collect::<Vec<_>>();
         let arcs = std::iter::repeat(arc.clone()).take(end).into_iter().collect::<Vec<_>>();
         let tarks = std::iter::repeat(tark.clone()).take(end).into_iter().collect::<Vec<_>>();
+        let swaptarks = std::iter::repeat(swaptark.clone())
+            .take(end)
+            .into_iter()
+            .collect::<Vec<_>>();
 
         group.bench_with_input(format!("{} clones, Rc", end), &rcs, |b, rcs| {
             b.iter_batched(
@@ -92,6 +113,14 @@ fn clone_bench(c: &mut Criterion) {
             b.iter_batched(
                 || black_box(tarks.clone()),
                 |vs| black_box(vs.iter().map(Tark::clone).collect::<Vec<_>>()),
+                BatchSize::NumIterations(1000),
+            )
+        });
+
+        group.bench_with_input(format!("{} clones, SwapTark", end), &swaptarks, |b, swaptarks| {
+            b.iter_batched(
+                || black_box(swaptarks.clone()),
+                |vs| black_box(vs.iter().map(SwapTark::clone).collect::<Vec<_>>()),
                 BatchSize::NumIterations(1000),
             )
         });
