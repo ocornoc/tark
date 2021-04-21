@@ -1,6 +1,6 @@
 [package]
 name = "tark"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["ocornoc <ocornoc@protonmail.com>"]
 edition = "2018"
 include = ["src/**/*", "LICENSE-*"]
