@@ -43,6 +43,7 @@ fn new_bench(c: &mut Criterion) {
         )
     });
     group.finish();
+    black_box(ns);
 }
 
 fn clone_bench(c: &mut Criterion) {
@@ -98,6 +99,12 @@ fn clone_bench(c: &mut Criterion) {
         )
     });
     group.finish();
+    black_box(rc);
+    black_box(arc);
+    black_box(tark);
+    black_box(rcs);
+    black_box(arcs);
+    black_box(tarks);
 }
 
 criterion_group! {
